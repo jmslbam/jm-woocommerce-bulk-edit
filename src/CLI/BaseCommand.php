@@ -173,7 +173,6 @@ class BaseCommand extends \WP_CLI_Command {
 		}
 
 		do {
-
 			/**
 			 * Keeps track of the post count because we can't overwrite $query->post_count.
 			 * I used that variable before in the while() check, but now use $count.
@@ -196,7 +195,7 @@ class BaseCommand extends \WP_CLI_Command {
 			$query_args = \wp_parse_args( $query_args, $defaults );
 
 			// Force to false so we can skip SQL_CALC_FOUND_ROWS for performance (no pagination).
-			// $query_args['no_found_rows'] = false;
+			$query_args['no_found_rows'] = false;
 
 			// When adding 'nopaging' the code breaks... don't know why, haven't investigated it yet.
 			unset( $query_args['nopaging' ] );
@@ -208,7 +207,7 @@ class BaseCommand extends \WP_CLI_Command {
 			if( isset( $query_args['p'] ) || isset( $query_args['post__in'] ) || isset( $query_args['post__not_in'] ) ) {
 				$query_args['posts_per_page'] = -1;
 			}
-			
+
 			// Get the posts
 			$query = new \WP_Query( $query_args );
 
@@ -230,7 +229,7 @@ class BaseCommand extends \WP_CLI_Command {
 
 				if ( defined( 'WP_CLI' ) && \WP_CLI ) {
 					\WP_CLI::log( \WP_CLI::colorize('%8Using p, post__in or post__not_in results quering ALL posts, which are not batches by "posts_per_page" and therefor not taking advantage of the goal of this loop.%n') );
-					$count = 1;
+					$count = 0;
 				}
 				
 			}
@@ -247,9 +246,7 @@ class BaseCommand extends \WP_CLI_Command {
 				$this->clear_caches();
 			}
 
-			ray($count, $query->have_posts());
-
-		} while ( $query->have_posts() );
+		} while ( $count > 0 );
 
 		if ( defined( 'WP_CLI' ) && \WP_CLI ) {
 			\WP_CLI::log( "{$total} items processed." );

@@ -44,7 +44,6 @@ class Command extends BaseCommand {
 
 		// If a post ID is passed, then only process those IDs
 		if ( ! empty( $args ) ) {
-			\WP_CLI::line( 'ID: ' . $args[0] );
 			$query_args['post__in'] = $this->process_csv_arguments_to_arrays( $args );
 		}
 
@@ -56,12 +55,13 @@ class Command extends BaseCommand {
 			if( ! $post ) {
 				\WP_CLI::error('Cant load: ' . $post->ID );
 			}
+
+			\WP_CLI::line( '(' . $post->ID . ') ' . $post->post_title );
 	
 			if ( ! $this->dry_run ) {
 				$this->update_product( $post, $data );
 			}
 		} );
-
 
 		$this->end_bulk_operation();
 	}
@@ -74,12 +74,12 @@ class Command extends BaseCommand {
 			return;
 		}
 
-		$attribute_key = 'pa_' . $data['meta_key']; // meta key and taxonomy slug are this same value
-
 		foreach( $data as $attribute ) {
+
+			$attribute_key = 'pa_' . $attribute['meta_key']; // meta key and taxonomy slug are this same value
 			
 			// Echo informatin
-			\WP_CLI::line( 'ID: ' . $post->ID . ' change ' . $attribute['meta_value_from'] . ' to ' . $attribute['meta_value_to'] );	
+			\WP_CLI::line( 'Changing from ' . $attribute['meta_value_from'] . ' to ' . $attribute['meta_value_to'] . ' for attribute: ' . $attribute_key );
 
 			// Be sure that our new attribute is added to our parent product, otherwise it won't be shown / added to the variation.
 			$this->set_terms( $product, $attribute_key, $attribute['meta_value_from'], $attribute['meta_value_to'] );
@@ -107,10 +107,10 @@ class Command extends BaseCommand {
         }
 	}
 
+	/**
+	 * Fix assigned terms to switch the incorrect attribute to the new correct attribute/term.
+	 */
 	protected function set_terms( $product, $attribute_key, $attribute_from, $attribute_to ) {
-		/**
-		 * Fix assigned terms
-		 */
 
 		// get old term
 		$incorrect_term = get_term_by( 'slug', $attribute_from, $attribute_key );
@@ -121,7 +121,7 @@ class Command extends BaseCommand {
 		$correct_term_id = $correct_term->term_id;
 
 		// Get all currently assigned terms
-		$terms = \wp_get_post_terms( $product->ID, $attribute_key, [ 'fields' => 'ids'] );
+		$terms = \wp_get_post_terms( $product->get_id(), $attribute_key, [ 'fields' => 'ids'] );
 
 		// Check if old/wrong term is currently assigned to this product
 		$incorect_key = array_search( (int)$incorrect_term_id, $terms );
@@ -136,13 +136,12 @@ class Command extends BaseCommand {
 		// Ontdubbelen
 		$terms = array_unique( $terms );
 
-		$result = \wp_set_object_terms( $product->ID, $terms, $attribute_key, false );
+		$result = \wp_set_object_terms( $product->get_id(), $terms, $attribute_key, false );
 
-		wc_delete_product_transients( $product->ID );
+		wc_delete_product_transients( $product->get_id() );
 	}
 
 	protected function set_attributes( $product, $attribute_key, $attribute_from, $attribute_to ) {
-		// ray("${attribute_key} / ${attribute_from} / ${attribute_to}");
 
 		// In our case a Variation
 		$attributes = $product->get_attributes();
