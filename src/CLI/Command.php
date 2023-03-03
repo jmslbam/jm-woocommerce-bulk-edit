@@ -26,6 +26,8 @@ class Command extends BaseCommand {
 
 		$attributes_to_edit = apply_filters('jm/woocommerce/bulk-edit', [] );
 
+		$assoc_args['post_type'] = 'product';
+
 		$this->update_values( $args, $assoc_args, $attributes_to_edit );
 	}
 
@@ -33,48 +35,33 @@ class Command extends BaseCommand {
 
 		$this->start_bulk_operation();
 
-		// Set up and run the bulk task.
-		$this->dry_run = ! empty( $assoc_args['dry-run'] );
-
-		// Loop: Get all meta keys values
-		$defaults = [
-			'post_type'              => [ 'product' ],
-			'post_status'            => [ 'publish' ],
-			'posts_per_page'         => 500,
-			'paged'                  => 0,
-			'fields'                 => 'all',
-			'update_post_term_cache' => false, // useful when taxonomy terms will not be utilized.
-			'update_post_meta_cache' => false, // useful when post meta will not be utilized.
-			'ignore_sticky_posts'    => true, // otherwise these will be appened to the query
-			'cache_results'          => false, // in rare situations (possibly WP-CLI commands),
-			'suppress_filters'       => true, // don't want a random `pre_get_posts` get in our way
-			'no_found_rows'			 => false // false so we can skip SQL_CALC_FOUND_ROWS for performance (no pagination).
-		];
-
-		$query_args = \wp_parse_args( $assoc_args, $defaults );
+		// Setup WP_Query args for this function
+		$query_args = array(
+			'fields' => 'all',
+		);
+		
+		$query_args = wp_parse_args( $assoc_args, $query_args );
 
 		// If a post ID is passed, then only process those IDs
 		if ( ! empty( $args ) ) {
 			$query_args['post__in'] = $this->process_csv_arguments_to_arrays( $args );
 		}
 
-		// Offset
-		if( isset( $query_args['offset'] ) ) {
-			$offset = $query_args['offset'];
-		}
+		// Set up and run the bulk task.
+		$this->dry_run = ! empty( $assoc_args['dry-run'] );
 
-		// Get the posts
-		$query = new \WP_Query( $query_args );
+		$this->loop_posts( $query_args, function( $post ) use ( $data ) {
+			
+			if( ! $post ) {
+				\WP_CLI::error('Cant load: ' . $post->ID );
+			}
 
-		
-
-		foreach( $query->posts as $index => $post ) {
-			\WP_CLI::line( ($offset + $index) . '. (' . $post->ID . ') ' . $post->post_title );
+			\WP_CLI::line( '(' . $post->ID . ') ' . $post->post_title );
 	
 			if ( ! $this->dry_run ) {
 				$this->update_product( $post, $data );
 			}
-		}
+		} );
 
 		$this->end_bulk_operation();
 	}
@@ -90,6 +77,9 @@ class Command extends BaseCommand {
 		foreach( $data as $attribute ) {
 
 			$attribute_key = 'pa_' . $attribute['meta_key']; // meta key and taxonomy slug are this same value
+			
+			// Echo informatin
+			\WP_CLI::line( 'Changing from ' . $attribute['meta_value_from'] . ' to ' . $attribute['meta_value_to'] . ' for attribute: ' . $attribute_key );
 
 			// Be sure that our new attribute is added to our parent product, otherwise it won't be shown / added to the variation.
 			$this->set_terms( $product, $attribute_key, $attribute['meta_value_from'], $attribute['meta_value_to'] );
@@ -159,14 +149,12 @@ class Command extends BaseCommand {
 		// Check if attribute contains incorrect old value
 		if( isset( $attributes[ $attribute_key ] ) && $attributes[ $attribute_key ] === $attribute_from ) {
 
-
-			// Echo informatin
-			\WP_CLI::line( 'Changing from ' . $attribute_from . ' to ' . $attribute_to . ' for attribute: ' . $attribute_key . ' on (' . $product->get_id() . ')' );
-
 			$attributes[ $attribute_key ] = $attribute_to;
 
 			$product->set_attributes( $attributes );
 			$product->save();
+
+			$attributes = $product->get_attributes();
 		}
 	}
 }
