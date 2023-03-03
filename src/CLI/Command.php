@@ -153,8 +153,6 @@ class Command extends BaseCommand {
 
 			$product->set_attributes( $attributes );
 			$product->save();
-
-			$attributes = $product->get_attributes();
 		}
 	}
 }

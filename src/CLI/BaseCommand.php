@@ -81,7 +81,6 @@ class BaseCommand extends \WP_CLI_Command {
 	 */
 	protected function clear_caches(): void {
 		$this->reset_db_query_log();
-		$this->reset_actions_log();
 		$this->reset_local_object_cache();
 	}
 
